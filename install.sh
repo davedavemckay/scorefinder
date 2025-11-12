@@ -32,19 +32,19 @@ echo ""
 
 # Check if .env exists
 echo "➜ Checking configuration..."
-if [ ! -f .env ]; then
-    echo "⚠ .env file not found"
+if [ ! -f ~/.env ]; then
+    echo "⚠ ~/.env file not found"
     echo "  Creating .env from template..."
-    cp .env.example .env
-    echo "✓ Created .env file"
+    cp .env.example ~/.env
+    echo "✓ Created ~/.env file"
     echo ""
-    echo "⚠ IMPORTANT: Please edit .env and add your API keys:"
+    echo "⚠ IMPORTANT: Please edit ~/.env and add your API keys:"
     echo "  - GOOGLE_API_KEY"
     echo "  - GOOGLE_SEARCH_ENGINE_ID"
     echo "  - MUSESCORE_PATH (if needed)"
     echo ""
 else
-    echo "✓ .env file exists"
+    echo "✓ ~/.env file exists"
     echo ""
 fi
 
@@ -68,7 +68,7 @@ echo "║         Installation Complete!               ║"
 echo "╚══════════════════════════════════════════════╝"
 echo ""
 echo "Next steps:"
-echo "1. Edit .env and add your API keys"
+echo "1. Edit ~/.env and add your API keys"
 echo "2. Run: python main.py check"
 echo "3. Try: python main.py find \"Song Name\" --artist \"Artist\""
 echo ""
