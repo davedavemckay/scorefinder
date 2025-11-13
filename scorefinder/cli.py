@@ -69,8 +69,8 @@ def find(song_name: str, artist: str, no_open: bool):
     
     except ValueError as e:
         print(f"\n{Fore.RED}✗ Configuration Error:{Style.RESET_ALL} {e}")
-        print(f"\n{Fore.YELLOW}Please create a .env file with your API keys.{Style.RESET_ALL}")
-        print(f"See .env.example for reference.")
+        print(f"\n{Fore.YELLOW}Please create a ~/.scorefinder file with your API keys.{Style.RESET_ALL}")
+        print(f"See ~/.scorefinder.example for reference.")
         sys.exit(1)
     except Exception as e:
         print(f"\n{Fore.RED}✗ Error:{Style.RESET_ALL} {e}")

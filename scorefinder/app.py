@@ -28,8 +28,8 @@ class ScoreFinder:
         # Validate configuration
         if not config.validate():
             raise ValueError(
-                "Invalid configuration. Please ensure GOOGLE_API_KEY and "
-                "GOOGLE_SEARCH_ENGINE_ID are set in .env file"
+                "Invalid configuration. Please ensure GOOGLE_API_JSON is "
+                "set in .scorefinder file"
             )
         
         self.searcher = NotationSearcher()

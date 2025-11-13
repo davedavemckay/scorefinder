@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .scorefinder file
+load_dotenv(os.path.expanduser("~/.scorefinder"))
 
 
 class Config:
@@ -20,7 +20,8 @@ class Config:
     def __init__(self):
         """Initialize configuration from environment variables."""
         # Google API settings
-        self.google_api_key: Optional[str] = os.getenv("GOOGLE_API_KEY")
+        self.gemini_api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
+        self.google_search_api_key: Optional[str] = os.getenv("GOOGLE_SEARCH_API_KEY")
         self.google_search_engine_id: Optional[str] = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
         
         # Musescore settings
@@ -69,9 +70,9 @@ class Config:
 
     def validate(self) -> bool:
         """Validate that required configuration is present."""
-        if not self.google_api_key:
-            return False
-        if not self.google_search_engine_id:
+        if not all([self.gemini_api_key, self.google_search_api_key, self.google_search_engine_id]):
+            print("Error: Missing Google API credentials in environment.")
+            print("Please set GEMINI_API_KEY, GOOGLE_SEARCH_API_KEY, and GOOGLE_SEARCH_ENGINE_ID.")
             return False
         return True
 
