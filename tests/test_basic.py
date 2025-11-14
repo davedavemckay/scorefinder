@@ -40,11 +40,6 @@ class TestImports(unittest.TestCase):
         self.assertIsNotNone(MusicVerifier)
         self.assertIsNotNone(VerificationResult)
 
-    def test_import_launcher(self):
-        """Test importing launcher module."""
-        from scorefinder.launcher import MusescoreLauncher
-        self.assertIsNotNone(MusescoreLauncher)
-
     def test_import_downloader(self):
         """Test importing downloader module."""
         from scorefinder.downloader import FileDownloader
@@ -227,7 +222,8 @@ class TestConfig(unittest.TestCase):
         
         self.assertTrue(hasattr(config, 'google_api_key'))
         self.assertTrue(hasattr(config, 'google_search_engine_id'))
-        self.assertTrue(hasattr(config, 'musescore_path'))
+        self.assertTrue(hasattr(config, 'gemini_api_key'))
+        # self.assertTrue(hasattr(config, 'musescore_path'))
         self.assertTrue(hasattr(config, 'output_dir'))
         self.assertTrue(hasattr(config, 'temp_dir'))
 

@@ -30,21 +30,67 @@ pip install -q -e .
 echo "✓ ScoreFinder installed"
 echo ""
 
-# Check if .env exists
-echo "➜ Checking configuration..."
-if [ ! -f ~/.env ]; then
-    echo "⚠ ~/.env file not found"
-    echo "  Creating .env from template..."
-    cp .env.example ~/.env
-    echo "✓ Created ~/.env file"
+# Set SFHOME environment variable
+if [ -z "$SFHOME" ]; then
+    export SFHOME=$PWD
+    echo "➜ Setting SFHOME to $SFHOME"
+    echo "✓ SFHOME set"
     echo ""
-    echo "⚠ IMPORTANT: Please edit ~/.env and add your API keys:"
+else
+    echo "➜ SFHOME is already set to $SFHOME"
+    echo ""
+fi
+
+# Add SFHOME to .bashrc if not already present
+echo "Would you like to add SFHOME to your ~/.bashrc for future sessions? (y/n)"
+read -r add_sfhome
+if [[ "$add_sfhome" =~ ^[Yy]$ ]]; then
+    if ! grep -q 'export SFHOME=' ~/.bashrc; then
+        echo "➜ Adding SFHOME to ~/.bashrc..."
+        echo "export SFHOME=\"$SFHOME\"" >> ~/.bashrc
+        echo "✓ SFHOME added to ~/.bashrc"
+        echo ""
+    else
+        echo "➜ SFHOME already present in ~/.bashrc"
+        echo ""
+    fi
+fi
+
+# Add bin dir to PATH environment variable
+if [ `echo $PATH | grep -c $SFHOME/bin` -eq 0 ]; then
+    export PATH=$SFHOME/bin:$PATH
+fi
+
+# Add bin dir to PATH in .bashrc if not already present
+echo "Would you like to add SFHOME/bin to your PATH environment variable via ~/.bashrc for future sessions? (y/n)"
+read -r add_bin
+if [[ "$add_bin" =~ ^[Yy]$ ]]; then
+    if ! grep -q $SFHOME/bin ~/.bashrc; then
+        echo "➜ Adding SFHOME/bin to PATH via ~/.bashrc..."
+        echo "export PATH=\"$SFHOME/bin:\$PATH\"" >> ~/.bashrc
+        echo "✓ SFHOME/bin added to ~/.bashrc"
+        echo ""
+    else
+        echo "➜ SFHOME/bin already present in ~/.bashrc"
+        echo ""
+    fi
+fi
+
+# Check if .scorefinder exists
+echo "➜ Checking configuration..."
+if [ ! -f ~/.scorefinder ]; then
+    echo "⚠ ~/.scorefinder file not found"
+    echo "  Creating .scorefinder from template..."
+    cp .scorefinder.example ~/.scorefinder
+    echo "✓ Created ~/.scorefinder file"
+    echo ""
+    echo "⚠ IMPORTANT: Please edit ~/.scorefinder and add your API keys:"
     echo "  - GOOGLE_API_KEY"
     echo "  - GOOGLE_SEARCH_ENGINE_ID"
     echo "  - MUSESCORE_PATH (if needed)"
     echo ""
 else
-    echo "✓ ~/.env file exists"
+    echo "✓ ~/.scorefinder file exists"
     echo ""
 fi
 
@@ -68,8 +114,8 @@ echo "║         Installation Complete!               ║"
 echo "╚══════════════════════════════════════════════╝"
 echo ""
 echo "Next steps:"
-echo "1. Edit ~/.env and add your API keys"
-echo "2. Run: python main.py check"
-echo "3. Try: python main.py find \"Song Name\" --artist \"Artist\""
+echo "1. Run: python main.py check"
+echo "2. Run: scorefinder.sh from any folder"
+echo "3. Try: scorefinder.sh find \"Song Name\" --artist \"Artist\""
 echo ""
 echo "For more information, see README.md and USAGE.md"

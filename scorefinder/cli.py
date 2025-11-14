@@ -30,7 +30,7 @@ def cli():
     ScoreFinder - Find and convert drum notation.
     
     Search for drum scores using Google Search, convert them to MusicXML
-    using Google Gemini AI, verify them, and open in Musescore Studio.
+    using Google Gemini AI and verify them.
     """
     pass
 
@@ -38,7 +38,6 @@ def cli():
 @cli.command()
 @click.argument('song_name')
 @click.option('--artist', '-a', help='Artist name to refine search')
-@click.option('--no-open', is_flag=True, help='Do not automatically open in Musescore')
 def find(song_name: str, artist: str, no_open: bool):
     """
     Find drum notation for a song.
@@ -49,7 +48,7 @@ def find(song_name: str, artist: str, no_open: bool):
         scorefinder find "Seven Nation Army" --artist "The White Stripes"
     """
     print(f"\n{Fore.CYAN}╔══════════════════════════════════════════════╗{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}║         ScoreFinder v{__version__}                 ║{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}║         ScoreFinder v{__version__}                  ║{Style.RESET_ALL}")
     print(f"{Fore.CYAN}╚══════════════════════════════════════════════╝{Style.RESET_ALL}")
     
     try:
@@ -91,7 +90,7 @@ def search(song_name: str, artist: str):
         scorefinder search "Enter Sandman" --artist "Metallica"
     """
     print(f"\n{Fore.CYAN}╔══════════════════════════════════════════════╗{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}║         ScoreFinder v{__version__}                 ║{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}║         ScoreFinder v{__version__}                ║{Style.RESET_ALL}")
     print(f"{Fore.CYAN}╚══════════════════════════════════════════════╝{Style.RESET_ALL}")
     
     try:
@@ -107,8 +106,8 @@ def search(song_name: str, artist: str):
     
     except ValueError as e:
         print(f"\n{Fore.RED}✗ Configuration Error:{Style.RESET_ALL} {e}")
-        print(f"\n{Fore.YELLOW}Please create a .env file with your API keys.{Style.RESET_ALL}")
-        print(f"See .env.example for reference.")
+        print(f"\n{Fore.YELLOW}Please create a .scorefinder file with your API keys.{Style.RESET_ALL}")
+        print(f"See .scorefinder.example for reference.")
         sys.exit(1)
     except Exception as e:
         print(f"\n{Fore.RED}✗ Error:{Style.RESET_ALL} {e}")
@@ -120,34 +119,21 @@ def search(song_name: str, artist: str):
 def check():
     """Check configuration and dependencies."""
     print(f"\n{Fore.CYAN}╔══════════════════════════════════════════════╗{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}║         ScoreFinder Configuration           ║{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}║         ScoreFinder Configuration            ║{Style.RESET_ALL}")
     print(f"{Fore.CYAN}╚══════════════════════════════════════════════╝{Style.RESET_ALL}\n")
     
     # Check API keys
     print(f"{Fore.YELLOW}API Configuration:{Style.RESET_ALL}")
     
-    if config.google_api_key:
-        print(f"  ✓ Google API Key: {Fore.GREEN}Set{Style.RESET_ALL}")
+    if config.google_search_api_key:
+        print(f"  ✓ Google Search API Key: {Fore.GREEN}Set{Style.RESET_ALL}")
     else:
-        print(f"  ✗ Google API Key: {Fore.RED}Not set{Style.RESET_ALL}")
+        print(f"  ✗ Google Search API Key: {Fore.RED}Not set{Style.RESET_ALL}")
     
-    if config.google_search_engine_id:
-        print(f"  ✓ Google Search Engine ID: {Fore.GREEN}Set{Style.RESET_ALL}")
+    if config.gemini_api_key:
+        print(f"  ✓ Google Gemini API Key: {Fore.GREEN}Set{Style.RESET_ALL}")
     else:
-        print(f"  ✗ Google Search Engine ID: {Fore.RED}Not set{Style.RESET_ALL}")
-    
-    # Check Musescore
-    print(f"\n{Fore.YELLOW}Musescore Studio:{Style.RESET_ALL}")
-    print(f"  Path: {config.musescore_path}")
-    
-    from .launcher import MusescoreLauncher
-    launcher = MusescoreLauncher()
-    
-    if launcher.is_available():
-        print(f"  Status: {Fore.GREEN}Available{Style.RESET_ALL}")
-    else:
-        print(f"  Status: {Fore.RED}Not found{Style.RESET_ALL}")
-        print(f"  {Fore.YELLOW}Please install Musescore Studio or set MUSESCORE_PATH in .env{Style.RESET_ALL}")
+        print(f"  ✗ Google Gemini API Key: {Fore.RED}Not set{Style.RESET_ALL}")
     
     # Check directories
     print(f"\n{Fore.YELLOW}Directories:{Style.RESET_ALL}")
@@ -172,7 +158,7 @@ def check():
     # Summary
     print(f"\n{Fore.CYAN}{'─' * 46}{Style.RESET_ALL}")
     
-    if config.validate() and launcher.is_available():
+    if config.validate():
         print(f"{Fore.GREEN}✓ Configuration is complete{Style.RESET_ALL}\n")
         sys.exit(0)
     else:

@@ -1,7 +1,7 @@
 """
 Main application module for ScoreFinder.
 
-Coordinates the search, conversion, verification, and launching of
+Coordinates the search, conversion and verification of
 drum notation files.
 """
 
@@ -14,7 +14,6 @@ from .config import config
 from .search import NotationSearcher, SearchResult
 from .converter import FormatConverter
 from .verifier import MusicVerifier
-from .launcher import MusescoreLauncher
 from .downloader import FileDownloader
 
 logger = logging.getLogger(__name__)
@@ -35,14 +34,12 @@ class ScoreFinder:
         self.searcher = NotationSearcher()
         self.converter = FormatConverter()
         self.verifier = MusicVerifier()
-        self.launcher = MusescoreLauncher()
         self.downloader = FileDownloader()
 
     def find_and_open_notation(
         self,
         song_name: str,
         artist: Optional[str] = None,
-        auto_open: bool = True
     ) -> Optional[Path]:
         """
         Find drum notation for a song and open it in Musescore.
@@ -50,7 +47,6 @@ class ScoreFinder:
         Args:
             song_name: Name of the song
             artist: Optional artist name
-            auto_open: Whether to automatically open in Musescore
 
         Returns:
             Path to the saved notation file, or None if failed
@@ -79,14 +75,6 @@ class ScoreFinder:
                 
                 if file_path:
                     print(f"\n✓ Successfully saved to: {file_path}")
-                    
-                    if auto_open:
-                        print(f"\n🎵 Opening in Musescore Studio...")
-                        if self.launcher.launch(file_path):
-                            print("✓ Musescore launched successfully")
-                        else:
-                            print("⚠ Failed to launch Musescore")
-                            print(f"   Please open the file manually: {file_path}")
                     
                     return file_path
             
