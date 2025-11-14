@@ -80,14 +80,14 @@ def find(song_name: str, artist: str, no_open: bool):
 @cli.command()
 @click.argument('song_name')
 @click.option('--artist', '-a', help='Artist name to refine search')
-def search(song_name: str, artist: str):
+def list(song_name: str, artist: str):
     """
-    Search for drum notation and list results.
+    List drum notation search results.
     
     SONG_NAME: Name of the song to search for
     
     Example:
-        scorefinder search "Enter Sandman" --artist "Metallica"
+        scorefinder list "Enter Sandman" --artist "Metallica"
     """
     print(f"\n{Fore.CYAN}╔══════════════════════════════════════════════╗{Style.RESET_ALL}")
     print(f"{Fore.CYAN}║         ScoreFinder v{__version__}                ║{Style.RESET_ALL}")
@@ -129,6 +129,11 @@ def check():
         print(f"  ✓ Google Search API Key: {Fore.GREEN}Set{Style.RESET_ALL}")
     else:
         print(f"  ✗ Google Search API Key: {Fore.RED}Not set{Style.RESET_ALL}")
+    
+    if config.google_search_engine_id:
+        print(f"  ✓ Google Search Engine ID: {Fore.GREEN}Set{Style.RESET_ALL}")
+    else:
+        print(f"  ✗ Google Search Engine ID: {Fore.RED}Not set{Style.RESET_ALL}")
     
     if config.gemini_api_key:
         print(f"  ✓ Google Gemini API Key: {Fore.GREEN}Set{Style.RESET_ALL}")

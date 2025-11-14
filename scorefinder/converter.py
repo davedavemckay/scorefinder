@@ -24,12 +24,12 @@ class FormatConverter:
         Args:
             api_key: Google API key (uses config if not provided)
         """
-        self.api_key = api_key or config.google_api_key
+        self.api_key = api_key or config.gemini_api_key
         if not self.api_key:
             raise ValueError("Google API key is required")
         
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel('gemini-2.0-flash')
 
     def convert_to_musicxml(self, content: str, source_format: str) -> str:
         """

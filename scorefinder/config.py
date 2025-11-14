@@ -23,6 +23,7 @@ class Config:
         with open(os.path.expanduser('~/.scorefinder'), 'r') as config_f:
             self.gemini_api_key = ''
             self.google_search_api_key = ''
+            self.google_search_engine_id = ''
             self.output_dir = Path(os.environ.get("SFHOME") + "/scores")
             self.temp_dir = Path(os.environ.get("SFHOME") + "/temp")
             self.log_level = 'INFO'
@@ -36,6 +37,8 @@ class Config:
                             k, v = (x.strip() for x in line.split('='))
                             if k == 'GOOGLE_SEARCH_API_KEY':
                                 self.google_search_api_key = v
+                            if k == 'GOOGLE_SEARCH_ENGINE_ID':
+                                self.google_search_engine_id = v
                             if k == 'GEMINI_API_KEY':
                                 self.gemini_api_key = v
                             if k == 'OUTPUT_DIR':
@@ -51,9 +54,9 @@ class Config:
 
     def validate(self) -> bool:
         """Validate that required configuration is present."""
-        if not all([self.gemini_api_key, self.google_search_api_key]):
+        if not all([self.gemini_api_key, self.google_search_api_key, self.google_search_engine_id]):
             print("Error: Missing Google API credentials in environment.")
-            print("Please set GEMINI_API_KEY and GOOGLE_SEARCH_API_KEY")
+            print("Please set GEMINI_API_KEY, GOOGLE_SEARCH_API_KEY, and GOOGLE_SEARCH_ENGINE_ID")
             return False
         return True
 

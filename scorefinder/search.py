@@ -61,14 +61,13 @@ class NotationSearcher:
         Initialize the notation searcher.
 
         Args:
-            api_key: Google API key (uses config if not provided)
-            search_engine_id: Google Custom Search Engine ID (uses config if not provided)
+            api_key: Google Search API key (uses config if not provided)
         """
-        self.api_key = api_key or config.google_api_key
+        self.api_key = api_key or config.google_search_api_key
         self.search_engine_id = search_engine_id or config.google_search_engine_id
         
-        if not self.api_key or not self.search_engine_id:
-            raise ValueError("Google API key and Search Engine ID are required")
+        if not self.api_key:
+            raise ValueError("Google API key is required")
 
     def search_drum_notation(self, song_name: str, artist: Optional[str] = None,
                             max_results: int = 10) -> List[SearchResult]:
