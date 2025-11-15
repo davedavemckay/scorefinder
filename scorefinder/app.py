@@ -112,74 +112,58 @@ class ScoreFinder:
 
     def _process_result(self, result: SearchResult, song_name: str) -> Optional[Path]:
         """
-        Process a single search result.
+        Process a single search result by downloading, converting (if needed), and verifying.
 
         Args:
-            result: Search result to process
-            song_name: Name of the song (for filename)
+            result: The SearchResult to process.
+            song_name: The name of the song for naming the final file.
 
         Returns:
-            Path to saved file, or None if processing failed
+            The path to the final saved file, or None if processing fails.
         """
-        # Handle based on format
-        if result.file_format in ['musicxml', 'midi']:
+        formats_to_convert = ['pdf', 'gp5', 'gp4', 'gpx', 'gp', 'ptb']
+        direct_formats = ['musicxml', 'xml', 'mid', 'midi']
+
+        if result.file_format in formats_to_convert:
+            return self._convert_and_verify(result, song_name)
+        elif result.file_format in direct_formats:
             return self._download_and_verify(result, song_name)
         else:
-            return self._convert_and_verify(result, song_name)
+            logger.warning(f"Unsupported file format '{result.file_format}' for URL: {result.url}")
+            print(f"   ⚠️ Unsupported format: {result.file_format}")
+            return None
 
     def _download_and_verify(
         self,
         result: SearchResult,
         song_name: str
     ) -> Optional[Path]:
-        """Download and verify a MusicXML or MIDI file."""
-        print(f"   Downloading {result.file_format} file...")
+        """Download and verify a file that doesn't need conversion."""
+        print(f"   Downloading and verifying {result.file_format}...")
         
-        # Determine file extension
-        if result.file_format == 'musicxml':
-            ext = '.musicxml'
-        elif result.file_format == 'midi':
-            ext = '.mid'
-        else:
-            ext = '.xml'
-        
-        # Create filename
-        safe_name = "".join(c for c in song_name if c.isalnum() or c in (' ', '-', '_'))
-        safe_name = safe_name.replace(' ', '_')
-        filename = f"{safe_name}{ext}"
-        output_path = config.output_dir / filename
-        
-        # Download
-        if not self.downloader.download(result.url, output_path):
-            print(f"   ❌ Download failed")
+        temp_file_path = self.downloader.download_file(result.url, config.temp_dir)
+        if not temp_file_path:
+            print("   ❌ Download failed.")
             return None
-        
-        print(f"   ✓ Downloaded")
-        
-        # Verify
-        print(f"   Verifying...")
-        verification = self.verifier.verify_file(output_path)
-        
-        if verification.valid:
-            print(f"   ✓ Verified: {verification.message}")
-            if verification.details:
-                # Check for minimum measure count
-                if 'measures' in verification.details and verification.details['measures'] < 30:
-                    measure_count = verification.details['measures']
-                    print(f"   ❌ Verification failed: Score is too short ({measure_count} measures). Minimum is 20.")
-                    if output_path.exists():
-                        output_path.unlink()
-                    return None
 
-                for key, value in verification.details.items():
-                    print(f"      {key}: {value}")
-            return output_path
-        else:
+        verification = self.verifier.verify_file(temp_file_path)
+        
+        if not verification.valid:
             print(f"   ❌ Verification failed: {verification.message}")
-            # Clean up invalid file
-            if output_path.exists():
-                output_path.unlink()
+            temp_file_path.unlink() # Clean up temp file
             return None
+
+        print("   ✓ Verified")
+        
+        # Create a clean filename
+        safe_song_name = "".join(c for c in song_name if c.isalnum() or c in " -_").rstrip()
+        final_filename = f"{safe_song_name}.{result.file_format}"
+        final_path = config.output_dir / final_filename
+        
+        # Move the verified file to the output directory
+        temp_file_path.rename(final_path)
+        
+        return final_path
 
     def _convert_and_verify(
         self,
@@ -189,35 +173,49 @@ class ScoreFinder:
         """Convert other formats to MusicXML and verify."""
         print(f"   Converting {result.file_format} to MusicXML...")
         
-        # Get content
-        content = self.downloader.get_content(result.url)
-        if not content:
-            print(f"   ❌ Could not fetch content")
+        temp_file_path = self.downloader.download_file(result.url, config.temp_dir)
+        if not temp_file_path:
+            print("   ❌ Download failed.")
             return None
         
         # Convert
         try:
             musicxml_content = self.converter.convert_to_musicxml(
-                content,
+                temp_file_path,
                 result.file_format
             )
         except Exception as e:
             print(f"   ❌ Conversion failed: {e}")
+            temp_file_path.unlink() # Clean up temp file
+            return None
+        
+        # Clean up the temporary file
+        temp_file_path.unlink()
+
+        if not musicxml_content:
+            # Conversion failed, message is already printed by the converter
             return None
         
         print(f"   ✓ Converted to MusicXML")
         
+        # Save the MusicXML content to a temporary file for verification
+        temp_xml_path = config.temp_dir / f"{Path(temp_file_path).stem}.xml"
+        with open(temp_xml_path, 'w', encoding='utf-8') as f:
+            f.write(musicxml_content)
+
         # Verify content
         print(f"   Verifying...")
-        verification = self.verifier.verify_content(musicxml_content, 'musicxml')
+        verification = self.verifier.verify_file(temp_xml_path)
         
         if not verification.valid:
             print(f"   ❌ Verification failed: {verification.message}")
+            temp_xml_path.unlink()
             return None
         
         # Check for minimum measure count
         if verification.details and 'measures' in verification.details and verification.details['measures'] < config.minimum_measures:
             print(f"   ❌ Verification failed: Score has fewer than {config.minimum_measures} measures.")
+            temp_xml_path.unlink()
             return None
 
         print(f"   ✓ Verified")
@@ -225,19 +223,10 @@ class ScoreFinder:
         # Save to file
         safe_name = "".join(c for c in song_name if c.isalnum() or c in (' ', '-', '_'))
         safe_name = safe_name.replace(' ', '_')
-        filename = f"{safe_name}_converted.musicxml"
+        filename = f"{safe_name}.musicxml"
         output_path = config.output_dir / filename
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(musicxml_content)
-        
-        # Verify saved file
-        final_verification = self.verifier.verify_file(output_path)
-        if not final_verification.valid:
-            print(f"   ❌ Final verification failed: {final_verification.message}")
-            if output_path.exists():
-                output_path.unlink()
-            return None
+        temp_xml_path.rename(output_path)
         
         return output_path
 

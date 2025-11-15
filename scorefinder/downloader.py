@@ -3,128 +3,53 @@ File downloader utility for fetching music notation files from URLs.
 """
 
 import logging
-import requests
 from pathlib import Path
 from typing import Optional
-from urllib.parse import urlparse, unquote
+import requests
 
 logger = logging.getLogger(__name__)
 
-
 class FileDownloader:
-    """Downloads files from URLs."""
+    """Handles downloading files from URLs."""
 
-    def __init__(self, timeout: int = 30):
-        """
-        Initialize the file downloader.
-
-        Args:
-            timeout: Request timeout in seconds
-        """
-        self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        })
-
-    def download(self, url: str, output_path: Path) -> bool:
+    def download_file(self, url: str, destination_folder: Path) -> Optional[Path]:
         """
         Download a file from a URL.
 
         Args:
-            url: URL to download from
-            output_path: Path to save the file
+            url: The URL to download from.
+            destination_folder: The folder to save the file in.
 
         Returns:
-            True if download succeeded, False otherwise
+            The path to the downloaded file, or None if download fails.
         """
-        logger.info(f"Downloading from: {url}")
-        
         try:
-            response = self.session.get(url, timeout=self.timeout, stream=True)
+            response = requests.get(url, stream=True, timeout=15)
             response.raise_for_status()
+
+            # Verify content type
+            content_type = response.headers.get('Content-Type', '').lower()
+            file_extension = Path(url).suffix.lower()
+
+            if file_extension == '.pdf' and 'application/pdf' not in content_type:
+                logger.warning(f"Expected PDF, but got Content-Type: {content_type} for {url}")
+                return None
             
-            # Save to file
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            
-            with open(output_path, 'wb') as f:
+            if file_extension in ['.gp5', '.gpx', '.gp'] and 'application/octet-stream' not in content_type and 'application/x-guitar-pro' not in content_type:
+                 logger.warning(f"Expected Guitar Pro, but got Content-Type: {content_type} for {url}")
+                 # We are more lenient with GP files as servers often mislabel them.
+
+            # Create a safe filename
+            filename = Path(url.split('/')[-1]).name
+            destination_path = destination_folder / filename
+
+            with open(destination_path, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
-                    if chunk:
-                        f.write(chunk)
+                    f.write(chunk)
             
-            logger.info(f"Downloaded to: {output_path}")
-            return True
-        
+            logger.info(f"Successfully downloaded {url} to {destination_path}")
+            return destination_path
+
         except requests.exceptions.RequestException as e:
-            logger.error(f"Download failed: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Unexpected error during download: {e}")
-            return False
-
-    def get_filename_from_url(self, url: str) -> str:
-        """
-        Extract filename from URL.
-
-        Args:
-            url: URL to extract filename from
-
-        Returns:
-            Filename string
-        """
-        # Try to get from Content-Disposition header
-        try:
-            response = self.session.head(url, timeout=10)
-            if 'Content-Disposition' in response.headers:
-                disposition = response.headers['Content-Disposition']
-                if 'filename=' in disposition:
-                    filename = disposition.split('filename=')[1].strip('"\'')
-                    return unquote(filename)
-        except Exception:
-            pass
-        
-        # Fall back to parsing URL
-        parsed_url = urlparse(url)
-        path = unquote(parsed_url.path)
-        filename = Path(path).name
-        
-        if not filename:
-            filename = "downloaded_file"
-        
-        return filename
-
-    def get_content(self, url: str) -> Optional[str]:
-        """
-        Get text content from a URL.
-
-        Args:
-            url: URL to fetch content from
-
-        Returns:
-            Content as string, or None if failed
-        """
-        try:
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
-            return response.text
-        except Exception as e:
-            logger.error(f"Failed to get content from {url}: {e}")
-            return None
-
-    def get_binary_content(self, url: str) -> Optional[bytes]:
-        """
-        Get binary content from a URL.
-
-        Args:
-            url: URL to fetch content from
-
-        Returns:
-            Content as bytes, or None if failed
-        """
-        try:
-            response = self.session.get(url, timeout=self.timeout)
-            response.raise_for_status()
-            return response.content
-        except Exception as e:
-            logger.error(f"Failed to get content from {url}: {e}")
+            logger.error(f"Failed to download {url}: {e}")
             return None
