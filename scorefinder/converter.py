@@ -10,6 +10,10 @@ from pathlib import Path
 from typing import Optional
 import io
 import random
+import os
+import shutil
+import subprocess
+import sys
 
 import google.generativeai as genai
 from PyPDF2 import PdfReader, errors
@@ -90,7 +94,36 @@ class FormatConverter:
         return None
 
 
-    def _convert_pdf_intelligently(self, file_path: Path, song_name: str) -> Optional[str]:
+    def get_pdf_preview_image(self, file_path: Path, song_name: str) -> Optional[tuple[Path, int]]:
+        """
+        Finds the start page of a song, saves a preview image, and returns the path and page number.
+        """
+        try:
+            reader = PdfReader(file_path)
+            num_pages = len(reader.pages)
+
+            if num_pages > MAX_PDF_PAGES:
+                return None, None
+
+            start_page = 0
+            if num_pages > TOC_SEARCH_THRESHOLD:
+                found_page = self._find_song_start_page(reader, song_name)
+                if found_page is None:
+                    return None, None # Could not find the song in the index
+                start_page = found_page
+            
+            # Create a preview image of the found page
+            preview_image = convert_from_path(file_path, first_page=start_page + 1, last_page=start_page + 1)[0]
+            preview_image_path = config.temp_dir / f"preview_{file_path.stem}.png"
+            preview_image.save(preview_image_path)
+            
+            return preview_image_path, start_page
+
+        except Exception as e:
+            logger.error(f"Failed to generate PDF preview: {e}")
+            return None, None
+
+    def _convert_pdf_intelligently(self, file_path: Path, song_name: str, start_page: int = 0) -> Optional[str]:
         """
         Intelligently finds and extracts a single song from a potentially large PDF.
         """
@@ -102,26 +135,13 @@ class FormatConverter:
                 print(f"   ⚠️  Skipping: PDF has {num_pages} pages, exceeding the limit of {MAX_PDF_PAGES}.")
                 return None
             
-            start_page = 0
-            # Only search for a TOC in longer documents
-            if num_pages > TOC_SEARCH_THRESHOLD:
-                found_page = self._find_song_start_page(reader, song_name)
-                if found_page is None:
-                    print(f"   ⚠️  Skipping: Could not find '{song_name}' in the index of the {num_pages}-page PDF.")
-                    return None
-                start_page = found_page
-            else:
-                # For shorter documents, just do a quick content check
-                print("      - Verifying PDF content...")
-                if not self._pdf_contains_sheet_music(file_path, num_pages):
-                    message = "PDF does not appear to contain sheet music."
-                    logger.warning(message)
-                    print(f"   ⚠️  Skipping: {message}")
-                    return None
-                print("      ✓ Content looks like sheet music.")
+            # This method is now called *after* a start page has been confirmed.
+            # The TOC search logic is now in get_pdf_preview_image.
 
             full_musicxml = ""
-            images = convert_from_path(file_path, first_page=start_page + 1, last_page=start_page + MAX_SONG_LENGTH_PAGES)
+            # Use the provided start_page; limit extraction to MAX_SONG_LENGTH_PAGES
+            last_page_to_convert = min(start_page + MAX_SONG_LENGTH_PAGES, num_pages)
+            images = convert_from_path(file_path, first_page=start_page + 1, last_page=last_page_to_convert)
             
             # Extract page by page from the starting point
             for i, image in enumerate(images):

@@ -36,6 +36,7 @@ class Config:
             self.minimum_measures = 20
             self.maximum_search_results = 10
             self.llm_model = 'gemini-1.5-flash-latest'
+            self.save_intermediate = False
 
             for line in config_f.readlines():
                 if len(line) == 0:
@@ -62,6 +63,8 @@ class Config:
                                 self.maximum_search_results = int(v)
                             if k == 'LLM_MODEL':
                                 self.llm_model = v
+                            if k == 'SAVE_INTERMEDIATE':
+                                self.save_intermediate = v.lower() in ('true', '1', 'yes')
                             
         
         # Create directories if they don't exist

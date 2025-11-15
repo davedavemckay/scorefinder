@@ -9,6 +9,8 @@ import logging
 from pathlib import Path
 from typing import List, Optional
 import sys
+import subprocess
+import shutil
 
 from .config import config
 from .search import NotationSearcher, SearchResult
@@ -59,14 +61,7 @@ class ScoreFinder:
         artist: Optional[str] = None,
     ) -> Optional[Path]:
         """
-        Find drum notation for a song.
-
-        Args:
-            song_name: Name of the song
-            artist: Optional artist name
-
-        Returns:
-            Path to the saved notation file, or None if failed
+        Find drum notation for a song, with interactive prompts for processing.
         """
         logger.info(f"Finding drum notation for: {song_name}" + 
                    (f" by {artist}" if artist else ""))
@@ -76,58 +71,121 @@ class ScoreFinder:
         results = self.searcher.search_drum_notation(song_name, artist, failed_urls=self.failed_urls)
         
         if not results:
-            print("❌ No results found")
+            print("❌ No new results found")
             return None
         
         print(f"✓ Found {len(results)} new results to process.")
 
-        if not results:
-            return None
-        
-        # Step 2: Process results
+        # Step 2: Interactively process results
         for i, result in enumerate(results, 1):
-            print(f"\n📄 Result {i}/{len(results)}: {result.title}")
-            print(f"   Format: {result.file_format}")
-            print(f"   URL: {result.url}")
-            
-            try:
-                file_path = self._process_result(result, song_name)
-                
-                if file_path:
-                    print(f"\n✓ Successfully saved to: {file_path}")
-                    
-                    return file_path
+            print(f"\n{"-"*20}\n📄 Result {i}/{len(results)}: {result.title}")
+            print(f"   Format: {result.file_format}, URL: {result.url}")
+
+            temp_file_path, preview_path, start_page = self._get_preview(result, song_name)
+
+            if preview_path:
+                print(f"   🖼️  Displaying preview...")
+                # Open preview with system default viewer
+                if sys.platform == "win32":
+                    os.startfile(preview_path)
+                elif sys.platform == "darwin":
+                    subprocess.run(["open", preview_path])
                 else:
-                    # If processing failed, add URL to failed list
-                    self._add_failed_url(result.url)
-            
-            except Exception as e:
-                logger.error(f"Error processing result {i}: {e}")
-                print(f"   ❌ Error: {e}")
+                    subprocess.run(["xdg-open", preview_path])
+            else:
+                print("   ⚠️  Could not generate a preview for this format.")
+
+            # Interactive prompt
+            while True:
+                choice = input("   ➡️  Choose an action: (P)roceed, (S)kip, (D)ownload Source, (Q)uit: ").lower()
+                if choice in ['p', 's', 'd', 'q']:
+                    break
+                print("      Invalid choice, please try again.")
+
+            if choice == 'q':
+                print("\n🛑 Quitting.")
+                return None
+            elif choice == 's':
+                print("   ⏭️  Skipping.")
+                self._add_failed_url(result.url) # Add to failed list so we don't see it again
+                continue
+            elif choice == 'd':
+                self._save_source_document(result, temp_file_path, song_name)
+                # We still add to failed_urls so we don't re-process it next time
                 self._add_failed_url(result.url)
                 continue
+            elif choice == 'p':
+                print("   ⚙️  Proceeding with conversion and verification...")
+                try:
+                    # If config is set, save a copy of the source before processing
+                    if config.save_intermediate:
+                        print("   💾  Saving intermediate source file (as configured)...")
+                        self._save_source_document(result, temp_file_path, song_name)
+
+                    # Pass the downloaded file and start page to the processing method
+                    file_path = self._process_result(result, song_name, temp_file_path, start_page)
+                    if file_path:
+                        print(f"\n🎉 Successfully saved to: {file_path}")
+                        return file_path
+                    else:
+                        # If processing failed after proceeding, add to failed list
+                        self._add_failed_url(result.url)
+                except Exception as e:
+                    logger.error(f"Error processing result {i}: {e}")
+                    print(f"   ❌ Error: {e}")
+                    self._add_failed_url(result.url)
+                    continue
         
         print("\n❌ Could not process any results successfully")
         return None
 
-    def _process_result(self, result: SearchResult, song_name: str) -> Optional[Path]:
-        """
-        Process a single search result by downloading, converting (if needed), and verifying.
+    def _get_preview(self, result: SearchResult, song_name: str) -> tuple[Optional[Path], Optional[Path], int]:
+        """Downloads a file and generates a preview if possible."""
+        print("   Downloading for preview...")
+        temp_file_path = self.downloader.download_file(result.url, config.temp_dir)
+        if not temp_file_path:
+            print("   ❌ Download failed.")
+            return None, None, 0
 
-        Args:
-            result: The SearchResult to process.
-            song_name: The name of the song for naming the final file.
+        preview_path = None
+        start_page = 0
+        if result.file_format == 'pdf':
+            preview_path, start_page = self.converter.get_pdf_preview_image(temp_file_path, song_name)
+        
+        return temp_file_path, preview_path, start_page
 
-        Returns:
-            The path to the final saved file, or None if processing fails.
+    def _save_source_document(self, result: SearchResult, temp_file_path: Optional[Path], song_name: str):
+        """Saves a copy of the original source file to the output directory."""
+        safe_name = "".join(c for c in song_name if c.isalnum() or c in (' ', '-', '_')).replace(' ', '_')
+        
+        if temp_file_path and temp_file_path.exists():
+            # It's a real file (like a PDF), so copy it
+            ext = temp_file_path.suffix
+            output_path = config.output_dir / f"{safe_name}_source{ext}"
+            shutil.copy(temp_file_path, output_path) # Use copy instead of move
+            print(f"   ✓ Source file saved to: {output_path}")
+        else:
+            # It's likely a webpage, save a link
+            output_path = config.output_dir / f"{safe_name}_source_link.html"
+            with open(output_path, 'w') as f:
+                f.write(f'<!DOCTYPE html><html><head><title>Link</title></head><body><a href="{result.url}">Click here to open the original source</a></body></html>')
+            print(f"   ✓ Source link saved to: {output_path}")
+
+    def _process_result(self, result: SearchResult, song_name: str, temp_file_path: Optional[Path], start_page: int = 0) -> Optional[Path]:
         """
+        Process a single search result using the already downloaded temp file.
+        """
+        if not temp_file_path:
+            return None
+
         formats_to_convert = ['pdf', 'gp5', 'gp4', 'gpx', 'gp', 'ptb']
         direct_formats = ['musicxml', 'xml', 'mid', 'midi']
 
         if result.file_format in formats_to_convert:
-            return self._convert_and_verify(result, song_name)
+            return self._convert_and_verify(result, song_name, temp_file_path, start_page)
         elif result.file_format in direct_formats:
-            return self._download_and_verify(result, song_name)
+            # For direct formats, the temp file is the final file.
+            return self._download_and_verify(result, song_name, temp_file_path)
         else:
             logger.warning(f"Unsupported file format '{result.file_format}' for URL: {result.url}")
             print(f"   ⚠️ Unsupported format: {result.file_format}")
@@ -136,16 +194,12 @@ class ScoreFinder:
     def _download_and_verify(
         self,
         result: SearchResult,
-        song_name: str
+        song_name: str,
+        temp_file_path: Path
     ) -> Optional[Path]:
-        """Download and verify a file that doesn't need conversion."""
-        print(f"   Downloading and verifying {result.file_format}...")
+        """Verify a file that doesn't need conversion."""
+        print(f"   Verifying {result.file_format}...")
         
-        temp_file_path = self.downloader.download_file(result.url, config.temp_dir)
-        if not temp_file_path:
-            print("   ❌ Download failed.")
-            return None
-
         verification = self.verifier.verify_file(temp_file_path)
         
         if not verification.valid:
@@ -153,8 +207,6 @@ class ScoreFinder:
             temp_file_path.unlink() # Clean up temp file
             return None
 
-        print("   ✓ Verified")
-        
         # Create a clean filename
         safe_song_name = "".join(c for c in song_name if c.isalnum() or c in " -_").rstrip()
         final_filename = f"{safe_song_name}.{result.file_format}"
@@ -168,33 +220,30 @@ class ScoreFinder:
     def _convert_and_verify(
         self,
         result: SearchResult,
-        song_name: str
+        song_name: str,
+        temp_file_path: Path,
+        start_page: int = 0
     ) -> Optional[Path]:
         """Convert other formats to MusicXML and verify."""
         print(f"   Converting {result.file_format} to MusicXML...")
         
-        temp_file_path = self.downloader.download_file(result.url, config.temp_dir)
-        if not temp_file_path:
-            print("   ❌ Download failed.")
-            return None
-        
-        # Convert
+        # Convert (file is already downloaded)
         try:
             musicxml_content = self.converter.convert_to_musicxml(
                 temp_file_path,
                 result.file_format,
-                song_name
+                song_name,
+                start_page=start_page
             )
         except Exception as e:
             print(f"   ❌ Conversion failed: {e}")
-            temp_file_path.unlink() # Clean up temp file
             return None
-        
-        # Clean up the temporary file
-        temp_file_path.unlink()
+        finally:
+            # Clean up the original downloaded file
+            if temp_file_path.exists():
+                temp_file_path.unlink()
 
         if not musicxml_content:
-            # Conversion failed, message is already printed by the converter
             return None
         
         print(f"   ✓ Converted to MusicXML")
