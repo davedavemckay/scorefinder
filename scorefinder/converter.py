@@ -165,7 +165,7 @@ class FormatConverter:
             for i, image in enumerate(images):
                 current_page_num = start_page + i + 1
                 print(f"      - Converting page {current_page_num}/{num_pages}...")
-                
+                print(f"         - Creating PNG image of page {current_page_num} for conversion.")                
                 img_byte_arr = io.BytesIO()
                 image.save(img_byte_arr, format='PNG')
                 img_bytes = img_byte_arr.getvalue()
@@ -173,20 +173,24 @@ class FormatConverter:
 
                 # Prompt to convert and check for continuation
                 prompt = "Convert the musical notation in this image to MusicXML. After the XML, on a new line, answer with only 'CONTINUES' if the piece seems to continue, or 'ENDS' if it seems complete."
-                
+
+                print(f"         - Sending PNG image of page {current_page_num} to Gemini for interpretation.")
+
                 # Use a spinner for the blocking API call
                 response = self._run_with_spinner(
                     lambda: model.generate_content([prompt, image_part], stream=False)
                 )
-                
+                print(f"         - Received response for page {current_page_num}.")
                 content_parts = response.text.rsplit('\n', 1)
                 xml_part = content_parts[0]
                 status = content_parts[1] if len(content_parts) > 1 else ""
-
+                print(f"         - Conversion status: {status.strip()}")
+                print(f"         - Cleaning up and appending MusicXML for page {current_page_num}.")
                 full_musicxml += self._clean_xml_output(xml_part) + "\n"
 
                 if 'ENDS' in status:
                     print("      ✓ Song appears to be complete.")
+                    print("      Performing final cleanup and ending.")
                     break
             
             return self._clean_xml_output(full_musicxml)
