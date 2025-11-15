@@ -45,6 +45,7 @@ class Config:
                     if '=' in line:
                         if len(line.split('=')) == 2:
                             k, v = (x.strip() for x in line.split('='))
+                            v = v.split('#')[0].strip()  # Remove inline comments
                             if k == 'GOOGLE_SEARCH_API_KEY':
                                 self.google_search_api_key = v
                             if k == 'GOOGLE_SEARCH_ENGINE_ID':
