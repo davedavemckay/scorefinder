@@ -25,6 +25,16 @@ except ImportError:
     # mido is optional but recommended
     mido = None
 
+# This needs access to the model for fixing
+try:
+    import google.generativeai as genai
+    from .config import config
+    genai.configure(api_key=config.gemini_api_key)
+    model = genai.GenerativeModel(config.llm_model)
+except ImportError:
+    model = None
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,7 +80,7 @@ class MusicVerifier:
         suffix = file_path.suffix.lower()
         
         if suffix in ['.xml', '.musicxml', '.mxl']:
-            return self.verify_musicxml(file_path)
+            return self.verify_and_fix_musicxml(file_path)
         elif suffix in ['.mid', '.midi']:
             return self.verify_midi(file_path)
         else:
@@ -78,7 +88,13 @@ class MusicVerifier:
 
     def verify_musicxml(self, file_path: Path) -> VerificationResult:
         """
-        Verify a MusicXML file.
+        DEPRECATED: Verify a MusicXML file. Use verify_and_fix_musicxml instead.
+        """
+        return self.verify_and_fix_musicxml(file_path)
+
+    def verify_and_fix_musicxml(self, file_path: Path) -> VerificationResult:
+        """
+        Verify a MusicXML file, attempting to fix it with an LLM if parsing fails.
 
         Args:
             file_path: Path to the MusicXML file
@@ -88,13 +104,28 @@ class MusicVerifier:
         """
         logger.info(f"Verifying MusicXML file: {file_path}")
         
-        # Basic XML validation
         try:
+            # First attempt to parse
             tree = ET.parse(file_path)
             root = tree.getroot()
         except ET.ParseError as e:
-            return VerificationResult(False, f"XML parse error: {e}")
-        
+            logger.warning(f"Initial XML parse failed: {e}")
+            if model is None:
+                return VerificationResult(False, f"XML parse error (auto-fix unavailable): {e}")
+
+            # Attempt to fix the file
+            print("   🔧 Initial verification failed. Attempting to auto-fix with LLM...")
+            if self._fix_musicxml_with_llm(file_path):
+                print("   ✓ Auto-fix successful. Re-verifying...")
+                try:
+                    # Second attempt to parse after fixing
+                    tree = ET.parse(file_path)
+                    root = tree.getroot()
+                except ET.ParseError as e2:
+                    return VerificationResult(False, f"XML parse error after fix: {e2}")
+            else:
+                return VerificationResult(False, f"XML parse error: {e} (auto-fix failed)")
+
         # Check for MusicXML root element
         if not (root.tag.endswith('score-partwise') or root.tag.endswith('score-timewise')):
             return VerificationResult(
@@ -147,6 +178,48 @@ class MusicVerifier:
                 "Valid MusicXML file (basic validation only)",
                 details
             )
+
+    def _fix_musicxml_with_llm(self, file_path: Path) -> bool:
+        """Reads a broken MusicXML file and uses an LLM to try and fix it."""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                broken_xml = f.read()
+            
+            if not broken_xml.strip():
+                logger.warning("XML file is empty, cannot fix.")
+                return False
+
+            prompt = (
+                "The following MusicXML content is broken, likely due to concatenating multiple "
+                "documents from a page-by-page conversion. Please fix it into a single, valid "
+                "MusicXML document. Key tasks: \n"
+                "1. Ensure there is only one `<?xml ... ?>` declaration at the very top.\n"
+                "2. Ensure there is only one root `<score-partwise>` or `<score-timewise>` element.\n"
+                "3. Merge `<part-list>` and `<part>` elements correctly.\n"
+                "4. Concatenate measures from all parts sequentially.\n"
+                "Only output the raw, corrected and valid XML content. Do not include any other text or markdown.\n\n"
+                f"BROKEN XML:\n```xml\n{broken_xml}\n```"
+            )
+            
+            response = model.generate_content(prompt, stream=False)
+            fixed_xml = response.text.strip().replace("`", "")
+            
+            # Clean up potential markdown fences
+            if fixed_xml.startswith("xml"):
+                fixed_xml = f"<{fixed_xml}"
+            if "```" in fixed_xml:
+                parts = fixed_xml.split("```")
+                if len(parts) > 1:
+                    fixed_xml = parts[1].strip().lstrip("xml")
+
+            # Overwrite the original file with the fixed content
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(fixed_xml)
+            
+            return True
+        except Exception as e:
+            logger.error(f"LLM fix process failed: {e}")
+            return False
 
     def verify_midi(self, file_path: Path) -> VerificationResult:
         """

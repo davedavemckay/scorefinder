@@ -11,6 +11,7 @@ from typing import List, Optional
 import sys
 import subprocess
 import shutil
+import os
 
 from .config import config
 from .search import NotationSearcher, SearchResult
@@ -253,14 +254,37 @@ class ScoreFinder:
         with open(temp_xml_path, 'w', encoding='utf-8') as f:
             f.write(musicxml_content)
 
-        # Verify content
+        # Verify content with interactive retry loop
         print(f"   Verifying...")
-        verification = self.verifier.verify_file(temp_xml_path)
         
-        if not verification.valid:
+        while True:
+            verification = self.verifier.verify_file(temp_xml_path)
+            
+            if verification.valid:
+                break # Exit loop if verification is successful
+            
             print(f"   ❌ Verification failed: {verification.message}")
-            temp_xml_path.unlink()
-            return None
+            
+            # Interactive prompt for failed verification
+            choice = input("      ➡️  Choose an action: (E)dit file, (R)etry verification, or (S)kip result: ").lower()
+            
+            if choice == 'e':
+                print(f"      Opening {temp_xml_path} for manual editing...")
+                if sys.platform == "win32":
+                    os.startfile(temp_xml_path)
+                elif sys.platform == "darwin":
+                    subprocess.run(["open", temp_xml_path])
+                else:
+                    # Use a common editor as a fallback
+                    editor = os.environ.get('EDITOR', 'vi')
+                    subprocess.run([editor, temp_xml_path])
+                input("      Press Enter after you have saved your changes to retry verification...")
+                continue # Loop back to retry verification
+            elif choice == 'r':
+                continue # Loop back to retry verification
+            else: # Default to skip
+                temp_xml_path.unlink()
+                return None
         
         # Check for minimum measure count
         if verification.details and 'measures' in verification.details and verification.details['measures'] < config.minimum_measures:
