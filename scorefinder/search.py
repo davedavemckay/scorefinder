@@ -6,9 +6,9 @@ music notation files for drum scores.
 """
 
 import logging
-from typing import List, Dict, Optional
+from typing import List, Optional, Set
+
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 from .config import config
 
@@ -33,7 +33,8 @@ class SearchResult:
         self.snippet = snippet
         self.file_format = file_format or self._detect_format(url)
 
-    def _detect_format(self, url: str) -> str:
+    @staticmethod
+    def _detect_format(url: str) -> str:
         """Detect file format from URL."""
         url_lower = url.lower()
         if url_lower.endswith(('.xml', '.musicxml', '.mxl')):
@@ -54,97 +55,89 @@ class SearchResult:
 
 
 class NotationSearcher:
-    """Searches for drum notation files using Google Custom Search."""
+    """Performs searches for drum notation."""
 
-    def __init__(self, api_key: Optional[str] = None, search_engine_id: Optional[str] = None):
+    def search_drum_notation(
+        self,
+        song_name: str,
+        artist: Optional[str] = None,
+        failed_urls: Optional[Set[str]] = None
+    ) -> List[SearchResult]:
         """
-        Initialize the notation searcher.
-
-        Args:
-            api_key: Google Search API key (uses config if not provided)
-        """
-        self.api_key = api_key or config.google_search_api_key
-        self.search_engine_id = search_engine_id or config.google_search_engine_id
-        
-        if not self.api_key:
-            raise ValueError("Google API key is required")
-
-    def search_drum_notation(self, song_name: str, artist: Optional[str] = None,
-                            max_results: int = 10) -> List[SearchResult]:
-        """
-        Search for drum notation files for a given song.
+        Search for drum notation using Google Custom Search API.
 
         Args:
             song_name: Name of the song
-            artist: Optional artist name to refine search
-            max_results: Maximum number of results to return
+            artist: Optional artist name
+            failed_urls: A set of URLs to skip.
 
         Returns:
-            List of SearchResult objects
+            A list of SearchResult objects.
         """
-        # Build search query
-        query_parts = [song_name]
         if artist:
-            query_parts.append(artist)
-        query_parts.extend(["drum", "notation", "OR", "musicxml", "OR", "midi", "OR", "sheet music"])
-        query = " ".join(query_parts)
+            logger.info(f"Searching for '{song_name}' by '{artist}'")
+        else:
+            logger.info(f"Searching for '{song_name}'")
+
+        query = f'"{song_name}" "{artist}" drum score OR drum notation OR drum sheet music filetype:pdf OR filetype:gp5 OR filetype:gp4 OR filetype:gpx OR filetype:gp OR filetype:ptb OR filetype:musicxml OR filetype:xml OR filetype:mid'
         
-        logger.info(f"Searching for: {query}")
+        valid_results: List[SearchResult] = []
+        processed_urls = set()
+        if failed_urls:
+            processed_urls.update(failed_urls)
+        
+        start_index = 1
+        num_to_fetch = config.maximum_search_results
         
         try:
-            service = build("customsearch", "v1", developerKey=self.api_key)
+            service = build("customsearch", "v1", developerKey=config.google_search_api_key)
             
-            results = []
-            page = 1
-            
-            while len(results) < max_results:
-                start_index = (page - 1) * 10 + 1
-                
-                search_response = service.cse().list(
+            while len(valid_results) < config.maximum_search_results:
+                res = service.cse().list(
                     q=query,
-                    cx=self.search_engine_id,
-                    start=start_index,
-                    num=min(10, max_results - len(results))
+                    cx=config.google_search_engine_id,
+                    num=num_to_fetch,
+                    start=start_index
                 ).execute()
-                
-                items = search_response.get('items', [])
+
+                items = res.get('items', [])
                 if not items:
+                    # No more results from the API
                     break
-                
+
                 for item in items:
+                    url = item.get('link')
+                    if not url or url in processed_urls:
+                        continue
+
+                    processed_urls.add(url)
+                    
                     result = SearchResult(
-                        title=item.get('title', ''),
-                        url=item.get('link', ''),
-                        snippet=item.get('snippet', '')
+                        title=item.get('title', 'No Title'),
+                        url=url,
+                        snippet=item.get('snippet', ''),
+                        file_format=self._guess_format(url, item.get('fileFormat', ''))
                     )
-                    results.append(result)
+                    valid_results.append(result)
+
+                    if len(valid_results) >= config.maximum_search_results:
+                        break
                 
-                # Check if there are more results
-                if 'queries' not in search_response or 'nextPage' not in search_response['queries']:
+                start_index += len(items)
+                # In case the API returns fewer than requested, we don't want to get stuck in a loop
+                if len(items) < num_to_fetch:
                     break
-                
-                page += 1
-            
-            logger.info(f"Found {len(results)} results")
-            return results[:max_results]
-        
-        except HttpError as e:
-            logger.error(f"HTTP error during search: {e}")
-            raise
+
+            return valid_results
+
         except Exception as e:
-            logger.error(f"Error during search: {e}")
-            raise
+            logger.error(f"An error occurred during search: {e}")
+            print(f"❌ An error occurred during search: {e}")
+            return []
 
-    def filter_by_format(self, results: List[SearchResult], 
-                        formats: List[str]) -> List[SearchResult]:
-        """
-        Filter search results by file format.
-
-        Args:
-            results: List of search results
-            formats: List of formats to include (e.g., ['musicxml', 'midi'])
-
-        Returns:
-            Filtered list of search results
-        """
-        return [r for r in results if r.file_format in formats]
+    def _guess_format(self, url: str, file_format_hint: str) -> str:
+        """Guess the file format from URL and hint."""
+        format_from_url = SearchResult._detect_format(url)
+        if format_from_url != 'unknown':
+            return format_from_url
+        return file_format_hint if file_format_hint in ['musicxml', 'midi', 'pdf', 'abc', 'guitar-pro'] else 'unknown'

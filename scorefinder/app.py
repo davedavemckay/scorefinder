@@ -35,6 +35,23 @@ class ScoreFinder:
         self.converter = FormatConverter()
         self.verifier = MusicVerifier()
         self.downloader = FileDownloader()
+        self.failed_urls_file = config.project_root / "failed_urls.txt"
+        self.failed_urls = self._load_failed_urls()
+
+    def _load_failed_urls(self) -> set[str]:
+        """Load failed URLs from the data file."""
+        if not self.failed_urls_file.exists():
+            return set()
+        with open(self.failed_urls_file, 'r', encoding='utf-8') as f:
+            return {line.strip() for line in f if line.strip()}
+
+    def _add_failed_url(self, url: str):
+        """Add a URL to the failed list and save it to the file."""
+        if url not in self.failed_urls:
+            self.failed_urls.add(url)
+            with open(self.failed_urls_file, 'a', encoding='utf-8') as f:
+                f.write(f"{url}\n")
+            logger.info(f"Added failed URL to list: {url}")
 
     def find_notation(
         self,
@@ -56,13 +73,16 @@ class ScoreFinder:
         
         # Step 1: Search for notation
         print(f"\n🔍 Searching for drum notation...")
-        results = self.searcher.search_drum_notation(song_name, artist)
+        results = self.searcher.search_drum_notation(song_name, artist, failed_urls=self.failed_urls)
         
         if not results:
             print("❌ No results found")
             return None
         
-        print(f"✓ Found {len(results)} results")
+        print(f"✓ Found {len(results)} new results to process.")
+
+        if not results:
+            return None
         
         # Step 2: Process results
         for i, result in enumerate(results, 1):
@@ -77,10 +97,14 @@ class ScoreFinder:
                     print(f"\n✓ Successfully saved to: {file_path}")
                     
                     return file_path
+                else:
+                    # If processing failed, add URL to failed list
+                    self._add_failed_url(result.url)
             
             except Exception as e:
                 logger.error(f"Error processing result {i}: {e}")
                 print(f"   ❌ Error: {e}")
+                self._add_failed_url(result.url)
                 continue
         
         print("\n❌ Could not process any results successfully")
@@ -142,7 +166,7 @@ class ScoreFinder:
                 # Check for minimum measure count
                 if 'measures' in verification.details and verification.details['measures'] < 30:
                     measure_count = verification.details['measures']
-                    print(f"   ❌ Verification failed: Score is too short ({measure_count} measures). Minimum is 10.")
+                    print(f"   ❌ Verification failed: Score is too short ({measure_count} measures). Minimum is 20.")
                     if output_path.exists():
                         output_path.unlink()
                     return None
@@ -192,9 +216,8 @@ class ScoreFinder:
             return None
         
         # Check for minimum measure count
-        if verification.details and 'measures' in verification.details and verification.details['measures'] < 10:
-            measure_count = verification.details['measures']
-            print(f"   ❌ Verification failed: Score is too short ({measure_count} measures). Minimum is 10.")
+        if verification.details and 'measures' in verification.details and verification.details['measures'] < config.minimum_measures:
+            print(f"   ❌ Verification failed: Score has fewer than {config.minimum_measures} measures.")
             return None
 
         print(f"   ✓ Verified")
@@ -224,23 +247,26 @@ class ScoreFinder:
         artist: Optional[str] = None
     ) -> List[SearchResult]:
         """
-        Search and list results without downloading.
+        List search results without processing them.
 
         Args:
             song_name: Name of the song
             artist: Optional artist name
 
         Returns:
-            List of search results
+            A list of SearchResult objects.
         """
         print(f"\n🔍 Searching for drum notation...")
-        results = self.searcher.search_drum_notation(song_name, artist)
+        results = self.searcher.search_drum_notation(song_name, artist, failed_urls=self.failed_urls)
         
         if not results:
-            print("❌ No results found")
+            print("❌ No new results found")
             return []
         
-        print(f"\n✓ Found {len(results)} results:\n")
+        print(f"\n✓ Found {len(results)} new results:\n")
+
+        if not results:
+            return []
         
         for i, result in enumerate(results, 1):
             print(f"{i}. {result.title}")
