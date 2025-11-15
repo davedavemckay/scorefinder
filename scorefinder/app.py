@@ -182,7 +182,8 @@ class ScoreFinder:
         try:
             musicxml_content = self.converter.convert_to_musicxml(
                 temp_file_path,
-                result.file_format
+                result.file_format,
+                song_name
             )
         except Exception as e:
             print(f"   ❌ Conversion failed: {e}")
