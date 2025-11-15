@@ -86,13 +86,13 @@ class ScoreFinder:
 
             if preview_path:
                 print(f"   🖼️  Displaying preview...")
-                # Open preview with system default viewer
+                # Open preview with system default viewer, suppressing output
                 if sys.platform == "win32":
                     os.startfile(preview_path)
                 elif sys.platform == "darwin":
-                    subprocess.run(["open", preview_path])
+                    subprocess.run(["open", preview_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 else:
-                    subprocess.run(["xdg-open", preview_path])
+                    subprocess.run(["xdg-open", preview_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:
                 print("   ⚠️  Could not generate a preview for this format.")
 
