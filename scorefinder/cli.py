@@ -49,7 +49,7 @@ def find(song_name: str, artist: str):
         scorefinder find "Seven Nation Army" --artist "The White Stripes"
     """
     print(f"\n{Fore.CYAN}╔══════════════════════════════════════════════╗{Style.RESET_ALL}")
-    print(f"{Fore.CYAN}║         ScoreFinder v{__version__}                  ║{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}║          ScoreFinder v{__version__}                ║{Style.RESET_ALL}")
     print(f"{Fore.CYAN}╚══════════════════════════════════════════════╝{Style.RESET_ALL}")
     
     try:

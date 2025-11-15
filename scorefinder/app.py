@@ -29,7 +29,7 @@ class ScoreFinder:
         # Validate configuration
         if not config.validate():
             raise ValueError(
-                "Invalid configuration. Please ensure GOOGLE_API_JSON is "
+                "Invalid configuration. Please ensure all required settings are "
                 "set in .scorefinder file"
             )
         

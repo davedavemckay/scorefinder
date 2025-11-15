@@ -65,7 +65,6 @@ class Config:
                                 self.llm_model = v
                             if k == 'SAVE_INTERMEDIATE':
                                 self.save_intermediate = v.lower() in ('true', '1', 'yes')
-                            
         
         # Create directories if they don't exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -76,6 +75,9 @@ class Config:
         if not all([self.gemini_api_key, self.google_search_api_key, self.google_search_engine_id]):
             print("Error: Missing Google API credentials in environment.")
             print("Please set GEMINI_API_KEY, GOOGLE_SEARCH_API_KEY, and GOOGLE_SEARCH_ENGINE_ID")
+            return False
+        if self.maximum_search_results <= 0 or self.maximum_search_results > 10:
+            print("Error: MAXIMUM_SEARCH_RESULTS must be a positive integer between 1 and 10.")
             return False
         return True
 
