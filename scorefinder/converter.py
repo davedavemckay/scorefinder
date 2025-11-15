@@ -37,10 +37,10 @@ TOC_SEARCH_THRESHOLD = 10 # Min pages to trigger a TOC search
 class FormatConverter:
     """Converts different music notation formats to MusicXML."""
 
-    def convert_to_musicxml(self, file_path: Path, source_format: str, song_name: str) -> Optional[str]:
+    def convert_to_musicxml(self, file_path: Path, source_format: str, song_name: str, start_page: int = 0) -> Optional[str]:
         """
         Convert a file to MusicXML format using Gemini.
-        Now accepts song_name to aid in searching within documents.
+        Now accepts song_name and start_page to aid in searching within documents.
 
         Args:
             file_path: Path to the source file.
@@ -53,7 +53,7 @@ class FormatConverter:
 
         try:
             if source_format == 'pdf':
-                return self._convert_pdf_intelligently(file_path, song_name)
+                return self._convert_pdf_intelligently(file_path, song_name, start_page=start_page)
             else:
                 return self._convert_binary_in_chunks(file_path, source_format)
 
