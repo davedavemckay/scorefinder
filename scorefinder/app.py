@@ -139,6 +139,14 @@ class ScoreFinder:
         if verification.valid:
             print(f"   ✓ Verified: {verification.message}")
             if verification.details:
+                # Check for minimum measure count
+                if 'measures' in verification.details and verification.details['measures'] < 30:
+                    measure_count = verification.details['measures']
+                    print(f"   ❌ Verification failed: Score is too short ({measure_count} measures). Minimum is 10.")
+                    if output_path.exists():
+                        output_path.unlink()
+                    return None
+
                 for key, value in verification.details.items():
                     print(f"      {key}: {value}")
             return output_path
@@ -183,6 +191,12 @@ class ScoreFinder:
             print(f"   ❌ Verification failed: {verification.message}")
             return None
         
+        # Check for minimum measure count
+        if verification.details and 'measures' in verification.details and verification.details['measures'] < 10:
+            measure_count = verification.details['measures']
+            print(f"   ❌ Verification failed: Score is too short ({measure_count} measures). Minimum is 10.")
+            return None
+
         print(f"   ✓ Verified")
         
         # Save to file

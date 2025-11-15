@@ -200,6 +200,7 @@ class MusicVerifier:
                 score = converter.parse(str(file_path))
                 
                 details['parts'] = len(score.parts)
+                details['measures'] = len(score.parts[0].getElementsByClass('Measure')) if score.parts else 0
                 all_notes = score.flatten().notes
                 details['notes'] = len(all_notes)
                 
@@ -243,6 +244,7 @@ class MusicVerifier:
 
     def _verify_musicxml_content(self, content: str) -> VerificationResult:
         """Verify MusicXML content string."""
+        details = {}
         try:
             root = ET.fromstring(content)
             
@@ -252,7 +254,17 @@ class MusicVerifier:
                     f"Not valid MusicXML: root element is '{root.tag}'"
                 )
             
-            return VerificationResult(True, "Valid MusicXML content")
+            # Use music21 for deeper inspection if available
+            if converter is not None:
+                try:
+                    score = converter.parse(content)
+                    details['parts'] = len(score.parts)
+                    details['measures'] = len(score.parts[0].getElementsByClass('Measure')) if score.parts else 0
+                    details['notes'] = len(score.flatten().notes)
+                except Exception as e:
+                    logger.warning(f"music21 content verification failed: {e}")
+
+            return VerificationResult(True, "Valid MusicXML content", details)
         
         except ET.ParseError as e:
             return VerificationResult(False, f"XML parse error: {e}")
