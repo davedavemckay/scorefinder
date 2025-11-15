@@ -36,13 +36,13 @@ class ScoreFinder:
         self.verifier = MusicVerifier()
         self.downloader = FileDownloader()
 
-    def find_and_open_notation(
+    def find_notation(
         self,
         song_name: str,
         artist: Optional[str] = None,
     ) -> Optional[Path]:
         """
-        Find drum notation for a song and open it in Musescore.
+        Find drum notation for a song.
 
         Args:
             song_name: Name of the song

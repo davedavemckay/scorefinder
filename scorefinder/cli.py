@@ -38,12 +38,13 @@ def cli():
 @cli.command()
 @click.argument('song_name')
 @click.option('--artist', '-a', help='Artist name to refine search')
-def find(song_name: str, artist: str, no_open: bool):
+def find(song_name: str, artist: str):
     """
     Find drum notation for a song.
     
     SONG_NAME: Name of the song to search for
-    
+    ARTIST: Optional artist name to refine search
+
     Example:
         scorefinder find "Seven Nation Army" --artist "The White Stripes"
     """
@@ -53,10 +54,9 @@ def find(song_name: str, artist: str, no_open: bool):
     
     try:
         app = ScoreFinder()
-        result = app.find_and_open_notation(
+        result = app.find_notation(
             song_name=song_name,
             artist=artist,
-            auto_open=not no_open
         )
         
         if result:
