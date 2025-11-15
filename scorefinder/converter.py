@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 
 # Configure the generative AI model
 genai.configure(api_key=config.gemini_api_key)
-model = genai.GenerativeModel(config.llm_model)
+# Use the stable model name for gemini-1.5-flash
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Define a token limit, leaving a buffer for the prompt and other overhead
 TOKEN_LIMIT = 1000000 
