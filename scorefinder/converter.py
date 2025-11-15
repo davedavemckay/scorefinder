@@ -171,7 +171,8 @@ class FormatConverter:
                 # Prompt to convert and check for continuation
                 prompt = "Convert the musical notation in this image to MusicXML. After the XML, on a new line, answer with only 'CONTINUES' if the piece seems to continue, or 'ENDS' if it seems complete."
                 
-                response = model.generate_content([prompt, image_part])
+                # Add stream=False to prevent hanging on long generation tasks
+                response = model.generate_content([prompt, image_part], stream=False)
                 
                 content_parts = response.text.rsplit('\n', 1)
                 xml_part = content_parts[0]
