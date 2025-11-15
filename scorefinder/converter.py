@@ -14,6 +14,9 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import itertools
+import time
 
 import google.generativeai as genai
 from PyPDF2 import PdfReader, errors
@@ -171,8 +174,10 @@ class FormatConverter:
                 # Prompt to convert and check for continuation
                 prompt = "Convert the musical notation in this image to MusicXML. After the XML, on a new line, answer with only 'CONTINUES' if the piece seems to continue, or 'ENDS' if it seems complete."
                 
-                # Add stream=False to prevent hanging on long generation tasks
-                response = model.generate_content([prompt, image_part], stream=False)
+                # Use a spinner for the blocking API call
+                response = self._run_with_spinner(
+                    lambda: model.generate_content([prompt, image_part], stream=False)
+                )
                 
                 content_parts = response.text.rsplit('\n', 1)
                 xml_part = content_parts[0]
@@ -194,6 +199,31 @@ class FormatConverter:
             logger.error(f"Intelligent PDF conversion failed: {e}")
             print(f"   ❌ PDF processing failed: {e}")
             return None
+
+    def _run_with_spinner(self, task):
+        """Runs a blocking task while displaying a spinner in a separate thread."""
+        done = threading.Event()
+        
+        def spin():
+            spinner = itertools.cycle(['-', '\\', '|', '/'])
+            while not done.is_set():
+                sys.stdout.write(f"\r        {next(spinner)} Please wait...")
+                sys.stdout.flush()
+                time.sleep(0.1)
+            # Clear the spinner line
+            sys.stdout.write('\r' + ' ' * 25 + '\r')
+            sys.stdout.flush()
+
+        spinner_thread = threading.Thread(target=spin)
+        spinner_thread.start()
+
+        try:
+            result = task()
+        finally:
+            done.set()
+            spinner_thread.join()
+        
+        return result
 
     def _convert_pdf_in_chunks(self, file_path: Path) -> Optional[str]:
         """
@@ -277,7 +307,10 @@ class FormatConverter:
             prompt = "Does this image contain musical sheet music? Answer with only 'yes' or 'no'."
             image_part = {"mime_type": "image/png", "data": img_bytes}
             
-            response = model.generate_content([prompt, image_part])
+            # Use a spinner for the blocking API call
+            response = self._run_with_spinner(
+                lambda: model.generate_content([prompt, image_part])
+            )
             
             return 'yes' in response.text.lower()
         except Exception as e:
