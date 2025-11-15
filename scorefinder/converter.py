@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Configure the generative AI model
 genai.configure(api_key=config.gemini_api_key)
-model = genai.GenerativeModel('gemini-2.5-flash')
+model = genai.GenerativeModel(config.llm_model)
 
 # Define a token limit, leaving a buffer for the prompt and other overhead
 TOKEN_LIMIT = 1000000 
@@ -103,14 +103,29 @@ class FormatConverter:
             num_pages = len(reader.pages)
 
             if num_pages > MAX_PDF_PAGES:
+                print(f"   ⚠️  Skipping: PDF has {num_pages} pages, exceeding the limit of {MAX_PDF_PAGES}.")
+                return None, None
+            if num_pages == 0:
+                print("   ⚠️  Skipping: PDF is empty.")
                 return None, None
 
             start_page = 0
             if num_pages > TOC_SEARCH_THRESHOLD:
+                print("      - Searching PDF index for song...")
                 found_page = self._find_song_start_page(reader, song_name)
                 if found_page is None:
+                    print(f"   ⚠️  Skipping: Could not find '{song_name}' in the index of the {num_pages}-page PDF.")
                     return None, None # Could not find the song in the index
                 start_page = found_page
+            else:
+                # For shorter documents, just do a quick content check
+                print("      - Verifying PDF content...")
+                if not self._pdf_contains_sheet_music(file_path, num_pages):
+                    message = "PDF does not appear to contain sheet music."
+                    logger.warning(message)
+                    print(f"   ⚠️  Skipping: {message}")
+                    return None, None
+                print("      ✓ Content looks like sheet music.")
             
             # Create a preview image of the found page
             preview_image = convert_from_path(file_path, first_page=start_page + 1, last_page=start_page + 1)[0]
